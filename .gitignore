@@ -1,0 +1,21 @@
+node_modules/
+app/dist/
+release/
+# Keep only reproducible, non-personal research inputs in version control.
+outputs/*
+!outputs/character-research/
+outputs/character-research/*
+!outputs/character-research/tables.json
+!outputs/race-research/
+outputs/race-research/*
+!outputs/race-research/tables.json
+!outputs/syyjsn-20261102/
+outputs/syyjsn-20261102/*
+!outputs/syyjsn-20261102/赛事数据.json
+!outputs/syyjsn-20261102/已实装马娘数据.json
+__pycache__/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
