@@ -120,7 +120,14 @@ const emptyState = () => ({
 async function writeAtomic(file, state, catalog) {
   await fs.mkdir(path.dirname(file), { recursive: true });
   const temp = file + '.tmp';
-  await fs.writeFile(temp, JSON.stringify(state, null, 2), 'utf8');
+  const contents = JSON.stringify(state, null, 2);
+  const handle = await fs.open(temp, 'w');
+  try {
+    await handle.writeFile(contents, 'utf8');
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
   let previous;
   try {
     previous = await fs.readFile(file, 'utf8');
@@ -146,6 +153,8 @@ async function writeAtomic(file, state, catalog) {
     if (valid) await fs.copyFile(file, file + '.bak');
   }
   await fs.rename(temp, file);
+  // A save acknowledgement means the actual file can be read back unchanged.
+  if ((await fs.readFile(file, 'utf8')) !== contents) throw new Error('存档写入校验失败');
 }
 async function readState(file, catalog) {
   let invalid = false;

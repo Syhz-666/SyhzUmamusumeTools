@@ -3,7 +3,7 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 root=Path(__file__).resolve().parent.parent
 files=[]
-for item in ['main.cjs','preload.cjs','store.cjs','package.json','package-lock.json','.gitignore','.prettierrc.json','README.md','DATA-SOURCES.md','VERIFICATION.md','ISSUES.md']:
+for item in ['main.cjs','preload.cjs','store.cjs','persistence.cjs','package.json','package-lock.json','.gitignore','.gitattributes','.prettierrc.json','README.md','DATA-SOURCES.md','VERIFICATION.md','ISSUES.md']:
     p=root/item
     if p.exists():files.append(p)
 for folder in ['app/src','app/public','build','scripts','tests']:

@@ -86,7 +86,7 @@ export interface State {
 }
 export interface Desktop {
   load: () => Promise<{
-    state: State;
+    state: State | null;
     dataPath: string;
     error?: string;
     recovered?: boolean;

@@ -51,7 +51,7 @@ function App() {
     [suitableOnly, setSuitableOnly] = useState(false);
   const [modal, setModal] = useState<Modal>(null),
     [notice, setNotice] = useState(''),
-    [saveStatus, setSaveStatus] = useState('已保存'),
+    [saveStatus, setSaveStatus] = useState('正在读取…'),
     [dataPath, setDataPath] = useState(''),
     [isTestProfile, setIsTestProfile] = useState(false),
     [focusRoom, setFocusRoom] = useState(false);
@@ -67,9 +67,11 @@ function App() {
       window.desktop.load(),
     ])
       .then(([c, r]) => {
+        setDataPath(r.dataPath);
+        if (!r.state) throw new Error(r.error || '存档读取失败');
         setCatalog(c);
         setState(r.state);
-        setDataPath(r.dataPath);
+        setSaveStatus('已保存');
         setIsTestProfile(!!r.isTestProfile);
         if (r.isTestProfile) document.title = 'SyhzUmamusumeTools [测试存档]';
         if (r.migratedFrom) setNotice('已迁移旧版存档，原文件保留');
@@ -88,7 +90,16 @@ function App() {
     setRaceQuery('');
     setUndo(null);
   }, [state?.selectedCharacter, state?.selectedScenario, state?.routeSelections]);
-  if (fatal) return <div className="fatal">应用加载失败：{fatal}</div>;
+  if (fatal)
+    return (
+      <div className="fatal">
+        <h2>无法读取收藏数据</h2>
+        <p>{fatal}</p>
+        {dataPath && <p>{dataPath}</p>}
+        <p>请重新读取。读取成功前，程序不会用空进度覆盖现有存档。</p>
+        <button onClick={() => location.reload()}>重新读取</button>
+      </div>
+    );
   if (!catalog || !state)
     return (
       <div className="loading">
@@ -1169,7 +1180,7 @@ function App() {
               {modal.type === 'sources' && (
                 <>
                   <h2>
-                    SyhzUmamusumeTools <small>v1.0.1</small>
+                    SyhzUmamusumeTools <small>v1.0.2</small>
                   </h2>
                   <p>
                     国服资料快照：{catalog.asOf}。收录 {catalog.characters.length} 位可养成角色、

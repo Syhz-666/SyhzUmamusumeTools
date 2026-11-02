@@ -1,6 +1,6 @@
 {
   "name": "syhz-umamusume-tools",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
@@ -8,6 +8,7 @@
     "check": "tsc -p app/tsconfig.json",
     "build": "npm run check && vite build --config app/vite.config.mts app",
     "test": "node --test tests/*.test.mjs",
+    "test:persistence": "node scripts/test-persistence.cjs",
     "smoke": "electron . --smoke-test",
     "pack": "npm run build && electron-builder --win portable --x64",
     "format": "prettier --write main.cjs preload.cjs store.cjs app/src app/index.html app/vite.config.mts app/tsconfig.json tests README.md DATA-SOURCES.md package.json"
@@ -32,6 +33,7 @@
       "main.cjs",
       "preload.cjs",
       "store.cjs",
+      "persistence.cjs",
       "app/dist/**/*",
       "app/src/engine.mjs",
       "build/icon.png"

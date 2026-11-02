@@ -1,14 +1,15 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
-const { validateState, writeAtomic, loadOrMigrate, emptyState } = require('./store.cjs');
+const { validateState } = require('./store.cjs');
+const { PersistentCollection } = require('./persistence.cjs');
 let window,
   catalog,
   file,
-  saveQueue = Promise.resolve(),
-  loadBlocked = false,
-  pendingSaves = 0,
-  canQuit = false;
+  collection,
+  canQuit = false,
+  closing = false,
+  closeTimer;
 const isSmoke = process.argv.includes('--smoke-test');
 const isQa = isSmoke || (process.argv.includes('--qa') && !!process.env.SYHZ_QA_DIR);
 const qaRoot =
@@ -36,44 +37,75 @@ if (hasLock)
         await fs.readFile(path.join(__dirname, 'app/dist/catalog.json'), 'utf8'),
       );
       file = path.join(app.getPath('userData'), 'collection-v1.json');
+      const legacyFiles = isQa
+        ? []
+        : ['优俊补杯助手', 'syhz-trophy-planner'].map((name) =>
+            path.join(app.getPath('appData'), name, 'collection-v1.json'),
+          );
+      collection = new PersistentCollection(file, catalog, legacyFiles);
+      const log = async (event, detail) => {
+        try {
+          await fs.mkdir(dataRoot, { recursive: true });
+          await fs.appendFile(
+            path.join(dataRoot, 'persistence.log'),
+            JSON.stringify({
+              at: new Date().toISOString(),
+              event,
+              ...detail,
+            }) + '\n',
+          );
+        } catch {}
+      };
+      // Finish reading disk before creating an editable window.
+      try {
+        const result = await collection.initialize();
+        await log('loaded', {
+          file,
+          trophies: Object.values(result.state.progress).reduce((n, ids) => n + ids.length, 0),
+        });
+      } catch (error) {
+        await log('load-failed', { file, error: error.message });
+      }
       ipcMain.handle('state:load', async () => {
         try {
-          const legacyFiles = isQa
-            ? []
-            : ['优俊补杯助手', 'syhz-trophy-planner'].map((name) =>
-                path.join(app.getPath('appData'), name, 'collection-v1.json'),
-              );
-          return {
-            ...(await loadOrMigrate(file, legacyFiles, catalog)),
+          return JSON.stringify({
+            ...(await collection.load()),
             dataPath: file,
             isTestProfile: isQa,
-          };
+          });
         } catch (e) {
-          loadBlocked = true;
-          return { state: emptyState(), error: e.message, dataPath: file, isTestProfile: isQa };
+          await log('load-failed', { file, error: e.message });
+          return JSON.stringify({
+            state: null,
+            error: `无法读取存档：${e.message}`,
+            dataPath: file,
+          });
         }
       });
-      ipcMain.handle('state:save', (_event, input) => {
-        if (loadBlocked) throw new Error('原存档损坏，已停止写入。请通过数据与备份恢复有效备份。');
-        const state = validateState(input, catalog);
-        pendingSaves++;
-        const operation = saveQueue.then(() => writeAtomic(file, state, catalog));
-        saveQueue = operation.catch(() => {}).finally(() => pendingSaves--);
-        return operation.then(() => ({ ok: true }));
+      ipcMain.handle('state:save', async (_event, input) => {
+        try {
+          return await collection.save(JSON.parse(input));
+        } catch (e) {
+          await log('save-failed', { file, error: e.message });
+          throw e;
+        }
       });
       ipcMain.handle('state:restore', async (_event, input) => {
-        const state = validateState(input, catalog);
-        await saveQueue;
-        if (loadBlocked) {
-          try {
-            await fs.copyFile(file, file + '.corrupt-' + Date.now());
-          } catch (e) {
-            if (e.code !== 'ENOENT') throw e;
-          }
+        return await collection.restore(JSON.parse(input));
+      });
+      ipcMain.on('state:flush-ready', async (event, result) => {
+        if (!closing || event.sender !== window?.webContents) return;
+        clearTimeout(closeTimer);
+        try {
+          if (result?.error) throw new Error(result.error);
+          await collection.flush();
+          canQuit = true;
+          window.close();
+        } catch (error) {
+          closing = false;
+          await log('close-save-failed', { file, error: error.message });
+          dialog.showErrorBox('数据尚未保存，已取消退出', error.message);
         }
-        await writeAtomic(file, state, catalog);
-        loadBlocked = false;
-        return { ok: true };
       });
       ipcMain.handle('backup:export', async (_event, input) => {
         const state = validateState(input, catalog),
@@ -155,6 +187,17 @@ if (hasLock)
         if (!url.startsWith('file:')) e.preventDefault();
       });
       window.webContents.session.setPermissionRequestHandler((_w, _p, cb) => cb(false));
+      window.on('close', (event) => {
+        if (canQuit) return;
+        event.preventDefault();
+        if (closing) return;
+        closing = true;
+        window.webContents.send('state:flush-request');
+        closeTimer = setTimeout(() => {
+          closing = false;
+          dialog.showErrorBox('尚未完成保存', '退出已取消，请等待保存完成后重试。');
+        }, 10000);
+      });
       if (isSmoke) {
         let remoteRequests = 0;
         window.webContents.session.webRequest.onBeforeRequest(
@@ -171,23 +214,42 @@ if (hasLock)
           try {
             await new Promise((r) => setTimeout(r, 1800));
             const result = await window.webContents.executeJavaScript(
-              `JSON.stringify({title:document.title,cards:document.querySelectorAll('.trophy-item').length,characters:document.querySelectorAll('.character-option').length,error:document.querySelector('.fatal')?.textContent,api:typeof window.desktop?.load,brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).length})`,
+              `JSON.stringify({title:document.title,cards:document.querySelectorAll('.trophy-item').length,characters:document.querySelectorAll('.character-option').length,error:document.querySelector('.fatal')?.textContent,api:typeof window.desktop?.load,trophies:parseInt(document.querySelector('.hero-count strong')?.textContent),character:document.querySelector('.character-hero h1')?.textContent,brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).length})`,
             );
             console.log('SMOKE', result);
             const parsed = JSON.parse(result);
+            const stored = (await collection.load()).state;
+            const expectedCount = (stored.progress[stored.selectedCharacter] || []).length;
             if (
               parsed.error ||
               parsed.cards !== 35 ||
               parsed.characters !== 87 ||
               parsed.api !== 'function' ||
               parsed.brokenImages ||
+              parsed.trophies !== expectedCount ||
+              parsed.character !==
+                catalog.characters.find((c) => c.id === stored.selectedCharacter)?.name ||
+              (process.env.SYHZ_EXPECT_TROPHIES &&
+                parsed.trophies !== +process.env.SYHZ_EXPECT_TROPHIES) ||
               remoteRequests
             )
               throw new Error('Renderer smoke failed');
             const img = await window.webContents.capturePage();
             await fs.mkdir(qaRoot, { recursive: true });
             await fs.writeFile(path.join(qaRoot, 'trophy-room.png'), img.toPNG());
-            app.exit(0);
+            if (process.argv.includes('--persistence-exercise')) {
+              const target = catalog.races.find(
+                (r) =>
+                  r.grade === 'G1' &&
+                  !(stored.progress[stored.selectedCharacter] || []).includes(r.id),
+              );
+              if (!target) throw new Error('No missing G1 trophy for persistence test');
+              await window.webContents.executeJavaScript(
+                `document.querySelector('button[aria-label=' + JSON.stringify(${JSON.stringify('点亮 ' + target.name)}) + ']').click()`,
+              );
+              // Exercise the actual close handshake immediately after a click.
+              window.close();
+            } else app.exit(0);
           } catch (e) {
             console.error(e);
             app.exit(1);
@@ -202,12 +264,9 @@ if (hasLock)
       app.exit(1);
     });
 app.on('before-quit', (event) => {
-  if (pendingSaves && !canQuit) {
+  if (window && !window.isDestroyed() && !canQuit) {
     event.preventDefault();
-    saveQueue.finally(() => {
-      canQuit = true;
-      app.quit();
-    });
+    window.close();
   }
 });
 app.on('window-all-closed', () => app.quit());
