@@ -55,10 +55,16 @@ jobs:
           }
           if (Compare-Object $expected $actual) { throw 'Release files failed SHA256 verification' }
 
-          $ref = [uri]::EscapeDataString("tags/$env:TAG")
-          $tagCommit = gh api "repos/$env:GITHUB_REPOSITORY/commits/$ref" --jq '.sha'
+          $ref = [uri]::EscapeDataString($env:TAG)
+          $response = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$ref" --jq '.object'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if ($tagCommit -cne $env:BUILT_COMMIT) {
+          $target = $response | ConvertFrom-Json
+          while ($target.type -eq 'tag') {
+            $response = gh api "repos/$env:GITHUB_REPOSITORY/git/tags/$($target.sha)" --jq '.object'
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $target = $response | ConvertFrom-Json
+          }
+          if ($target.type -ne 'commit' -or $target.sha -cne $env:BUILT_COMMIT) {
             throw "Tag $env:TAG no longer points to the tested commit $env:BUILT_COMMIT"
           }
 
