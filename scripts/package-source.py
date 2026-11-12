@@ -6,7 +6,7 @@ files=[]
 for item in ['main.cjs','preload.cjs','store.cjs','persistence.cjs','package.json','package-lock.json','.gitignore','.gitattributes','.prettierrc.json','README.md','DATA-SOURCES.md','VERIFICATION.md','ISSUES.md']:
     p=root/item
     if p.exists():files.append(p)
-for folder in ['app/src','app/public','build','scripts','tests']:
+for folder in ['.github/workflows','app/src','app/public','build','scripts','tests']:
     files.extend(p for p in (root/folder).rglob('*') if p.is_file() and '__pycache__' not in p.parts)
 files.extend(root/p for p in ['app/index.html','app/tsconfig.json','app/vite.config.mts'])
 files.extend(root/p for p in ['outputs/character-research/tables.json','outputs/race-research/tables.json','outputs/syyjsn-20261102/赛事数据.json','outputs/syyjsn-20261102/已实装马娘数据.json'])

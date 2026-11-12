@@ -2,7 +2,7 @@
 
 为《闪耀！优俊少女》国服制作的本地 Electron 应用。按马娘记录 G1～G3 奖杯，根据未获得奖杯安排三年赛程，导出后在游戏内手动预约。
 
-**直接使用：** 双击 `release/SyhzUmamusumeTools-1.0.2-x64.exe`。Windows x64 便携版，无需安装 Node.js，图片与资料均可离线使用。
+**Windows x64 安装：** 下载 `SyhzUmamusumeTools-<版本>-x64-Setup.exe` 并运行，安装后从开始菜单打开应用。无需安装 Node.js，图片与资料均可离线使用。
 
 ## 使用方法
 
@@ -37,7 +37,7 @@
 
 「导出全部数据备份」包含所有角色的奖杯、预约、适性和目标分支。「从 JSON 恢复」先校验内容并展示概况，确认后替换。文件版本、角色、赛事、日期、目标冲突和适性非法时会拒绝导入。
 
-便携程序的位置不影响用户存档位置；迁移电脑前请导出 JSON。测试使用独立测试目录，不修改正常用户存档。只有同时传入 `--qa` 和 `SYHZ_QA_DIR` 才启用交互测试目录，并在页眉和标题明确显示「测试存档」；正常双击始终打开正式存档。
+安装位置与用户存档目录独立。安装版会读取已有的正式存档，卸载时保留该目录。迁移电脑前请导出 JSON。测试使用独立测试目录，只有同时传入 `--qa` 和 `SYHZ_QA_DIR` 才启用交互测试目录，并在页眉和标题明确显示「测试存档」。
 
 ## 从源码运行
 
@@ -56,12 +56,20 @@ npm run check   # TypeScript 检查
 npm test        # 排程与存档回归测试
 npm run test:persistence # 真实 Electron：已有36项 → 点亮后立即退出 → 重启自动恢复37项
 npm run smoke   # Electron 离线渲染及桌面桥接检查
-npm run pack    # 生成 Windows x64 portable EXE
+npm run pack    # 生成 Windows x64 安装包
 ```
 
-`npm run pack` 使用 `node_modules/electron/dist` 的运行时；首次打包需要网络下载构建组件。构建产物在 `release`，本地便携版未进行代码签名。
+`npm run pack` 使用 `node_modules/electron/dist` 的运行时。首次打包需要网络下载构建组件，产物为 `release` 中的未签名 NSIS 安装包。
 
 目录：`app/src` 为 React 界面及独立排程逻辑，`main.cjs`／`preload.cjs` 为隔离的 Electron 主进程和桥接，`store.cjs` 为存档校验与原子保存，`app/public` 为离线资料和资源，`tests` 为回归测试，`scripts` 为资料整理及图标生成程序。
+
+## 持续集成与发布
+
+向 `main` 推送或提交针对 `main` 的 Pull Request 时，`Verify` 会在 Windows 上安装锁定的依赖、运行单元测试、构建 x64 安装包，并验证安装、已安装程序的重启恢复和卸载。
+
+发布时先更新并提交 `package.json` 和 `package-lock.json` 中的版本，再将对应的 `v<版本号>` 标签推送到 GitHub。打开 **Actions → Release → Run workflow**，填写标签，例如 `v1.0.3`。默认发布为预发行版，发布正式版时取消勾选 `prerelease`。
+
+发布流程按标签检出源码，复用 `Verify` 的构建与测试步骤。检查通过后，发布测试过的安装包、包含离线资源的源码 ZIP 和 SHA256 清单，并生成 GitHub 更新说明。
 
 ## 界面
 
@@ -69,4 +77,4 @@ npm run pack    # 生成 Windows x64 portable EXE
 
 这是非官方辅助工具，角色与赛事图像归各权利方所有。
 
-本地 `release` 仅保留最新版本；新版本验证通过后清理旧版与打包中间文件。GitHub 已发布的历史版本单独管理。
+本地 `release` 仅保留最新版本。新版本验证通过后清理旧版与打包中间文件。GitHub 已发布的历史版本单独管理。

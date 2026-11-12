@@ -1,4 +1,4 @@
-// A real Electron/portable restart test using disposable, explicitly isolated data.
+// A real Electron restart test using disposable, explicitly isolated data.
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -37,7 +37,9 @@ async function run(executable, args, qaRoot, count) {
   });
 }
 async function testPersistence() {
-  const qaRoot = await fs.mkdtemp(path.join(root, 'outputs/app-qa/restart-test-'));
+  const qaParent = path.join(root, 'outputs', 'app-qa');
+  await fs.mkdir(qaParent, { recursive: true });
+  const qaRoot = await fs.mkdtemp(path.join(qaParent, 'restart-test-'));
   const file = path.join(qaRoot, 'profile/collection-v1.json');
   const state = emptyState();
   state.selectedCharacter = '1002';

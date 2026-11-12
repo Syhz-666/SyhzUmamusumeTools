@@ -10,7 +10,7 @@
     "test": "node --test tests/*.test.mjs",
     "test:persistence": "node scripts/test-persistence.cjs",
     "smoke": "electron . --smoke-test",
-    "pack": "npm run build && electron-builder --win portable --x64",
+    "pack": "npm run build && electron-builder --win nsis --x64",
     "format": "prettier --write main.cjs preload.cjs store.cjs app/src app/index.html app/vite.config.mts app/tsconfig.json tests README.md DATA-SOURCES.md package.json"
   },
   "devDependencies": {
@@ -39,12 +39,16 @@
       "build/icon.png"
     ],
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "build/icon.ico",
       "signExecutable": false
     },
-    "portable": {
-      "artifactName": "SyhzUmamusumeTools-${version}-x64.exe"
+    "nsis": {
+      "artifactName": "SyhzUmamusumeTools-${version}-x64-Setup.exe",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": false,
+      "deleteAppDataOnUninstall": false
     },
     "electronDist": "node_modules/electron/dist"
   },

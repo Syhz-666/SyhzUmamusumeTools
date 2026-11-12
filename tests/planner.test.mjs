@@ -27,6 +27,7 @@ const {
 const catalog = JSON.parse(
   await fs.readFile(new URL('../app/public/catalog.json', import.meta.url), 'utf8'),
 );
+const qaRoot = path.resolve('outputs/app-qa');
 const character = (id) => catalog.characters.find((c) => c.id === id);
 const setup = (id = '1001', scenario = 'ura') => {
   const c = character(id),
@@ -214,7 +215,8 @@ test('存档校验隔离角色和剧本，拒绝损坏版本、未知赛事、�
   }
 });
 test('原子存档、上一份自动备份及损坏文件恢复', async () => {
-  const dir = await fs.mkdtemp(path.resolve('outputs/app-qa/store-test-')),
+  await fs.mkdir(qaRoot, { recursive: true });
+  const dir = await fs.mkdtemp(path.join(qaRoot, 'store-test-')),
     file = path.join(dir, 'collection.json');
   const a = emptyState();
   await writeAtomic(file, a);
@@ -246,7 +248,8 @@ test('奖杯使用游戏显示顺序，保留泥地倒序与升格赛事的原�
   assert.ok(g3.findIndex((r) => r.id === '4050') < g3.findIndex((r) => r.id === '3030'));
 });
 test('更名迁移保留进度、原文件及角色选择，已有新版存档优先', async () => {
-  const dir = await fs.mkdtemp(path.resolve('outputs/app-qa/migrate-test-'));
+  await fs.mkdir(qaRoot, { recursive: true });
+  const dir = await fs.mkdtemp(path.join(qaRoot, 'migrate-test-'));
   const oldFile = path.join(dir, 'old/collection-v1.json');
   const newFile = path.join(dir, 'new/collection-v1.json');
   const state = emptyState();

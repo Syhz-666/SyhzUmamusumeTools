@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag, for example v1.0.3
+        type: string
+        required: true
+      prerelease:
+        description: Publish as a pre-release
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/verify.yml
+    with:
+      tag: ${{ inputs.tag }}
+
+  publish:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: windows-release
+          path: release
+
+      - name: Check tag and publish tested files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          BUILT_COMMIT: ${{ needs.build.outputs.commit }}
+        run: |
+          $version = $env:TAG.Substring(1)
+          $setup = "SyhzUmamusumeTools-$version-x64-Setup.exe"
+          $source = "SyhzUmamusumeTools-$version-source.zip"
+          $checksums = "release/SHA256SUMS-$version.txt"
+          $expected = Get-Content -LiteralPath $checksums
+          $actual = foreach ($file in @($setup, $source)) {
+            $hash = (Get-FileHash -LiteralPath "release/$file" -Algorithm SHA256).Hash
+            "$hash  $file"
+          }
+          if (Compare-Object $expected $actual) { throw 'Release files failed SHA256 verification' }
+
+          $ref = [uri]::EscapeDataString("tags/$env:TAG")
+          $tagCommit = gh api "repos/$env:GITHUB_REPOSITORY/commits/$ref" --jq '.sha'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($tagCommit -cne $env:BUILT_COMMIT) {
+            throw "Tag $env:TAG no longer points to the tested commit $env:BUILT_COMMIT"
+          }
+
+          $flags = @('--repo', $env:GITHUB_REPOSITORY, '--verify-tag',
+            '--title', "SyhzUmamusumeTools $env:TAG", '--generate-notes',
+            '--notes', "Windows x64 installer built from $env:BUILT_COMMIT. Install, offline launch, save recovery across restart, and uninstall verified.")
+          if ($env:PRERELEASE -eq 'true') { $flags += '--prerelease' }
+          $files = @("release/$setup", "release/$source", $checksums)
+          gh release create $env:TAG @flags @files
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

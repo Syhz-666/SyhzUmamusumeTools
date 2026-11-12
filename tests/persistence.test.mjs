@@ -9,7 +9,9 @@ const { PersistentCollection } = require('../persistence.cjs');
 const { emptyState, writeAtomic, readState } = require('../store.cjs');
 const catalog = require('../app/public/catalog.json');
 async function fixture() {
-  const directory = await fs.mkdtemp(path.resolve('outputs/app-qa/session-test-'));
+  const qaRoot = path.resolve('outputs/app-qa');
+  await fs.mkdir(qaRoot, { recursive: true });
+  const directory = await fs.mkdtemp(path.join(qaRoot, 'session-test-'));
   const file = path.join(directory, 'collection-v1.json');
   const state = emptyState();
   state.selectedCharacter = '1002';
